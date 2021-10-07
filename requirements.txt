@@ -1,0 +1,9 @@
+fire==0.4.0
+ipython
+jupyter
+matplotlib
+numpy
+requests==2.25.1
+pandas
+pycodestyle==2.5.0
+Metatrader5
