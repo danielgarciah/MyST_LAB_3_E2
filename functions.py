@@ -29,8 +29,7 @@ class log_meta():
 
     def get_historical(self):
         tuplas = self.f_login().history_deals_get(self.start_date, self.end_date)
-        df = pd.DataFrame(tuplas,
-                          columns=['ticket', 'order', 'time', 'time_msc', 'type', 'entry', 'magic', 'position_id',
-                                   'reason', 'volume', 'price', 'commission', 'swap', 'profit', 'fee', 'symbol',
-                                   'comment', 'external_id'])
+        df = pd.DataFrame(tuplas, columns=tuplas[0]._asdict().keys())
+        df['time'] = pd.to_datetime(df['time'], unit='s')
+        df['time_msc'] = pd.to_datetime(df['time'], unit='ms')
         return df
