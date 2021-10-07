@@ -1,7 +1,6 @@
 import pandas as pd
 import MetaTrader5 as Mt5
 
-
 class log_meta():
 
     def __init__(self, path, login, password, server, start_date, end_date):
@@ -33,3 +32,11 @@ class log_meta():
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df['time_msc'] = pd.to_datetime(df['time'], unit='ms')
         return df
+        
+class download_report():
+    def __init__(self,path):
+        self.path = path
+    
+    def get_report(self):
+        data = pd.read_excel(self.path)
+        return data

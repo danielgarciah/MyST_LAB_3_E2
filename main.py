@@ -11,10 +11,24 @@ end_date = datetime.today()
 
 log = log_meta(meta_path, login_count, pasword_count, server_name, start_date, end_date)
 
+<<<<<<< Updated upstream
 if __name__ == "__main__":
     # print("Hello_World")
     print(log.f_login())
     print(log.account_info())
     print(log.get_historical())
+=======
+report_name= 'ReportMt5_Chelsi'
+reportpath= path.abspath('ReportesMT5/')+'/'+ report_name + '.xlsx'
+
+print(download_report(reportpath).get_report())
+
+if __name__ == "__main__":
+    #print("Hello_World")
+    print(log.f_login())
+    print(log.account_info())
+    print(log.get_historical())
+    print(download_report(reportpath).get_report())
+>>>>>>> Stashed changes
 
 
