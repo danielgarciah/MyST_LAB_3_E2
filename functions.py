@@ -48,3 +48,18 @@ class load_excel():
         return pd.read_excel(reportpath + self.file_name + ".xlsx")
 
 
+class est_desc():
+
+    def __init__(self):
+        pass
+
+    def get_historical(self):
+        return load_excel().get_historical()
+
+    def get_info(self):
+        return self.get_historical().info()
+
+
+
+
+
