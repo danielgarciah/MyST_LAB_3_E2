@@ -7,3 +7,4 @@ requests==2.25.1
 pandas
 pycodestyle==2.5.0
 Metatrader5
+openpyxl
