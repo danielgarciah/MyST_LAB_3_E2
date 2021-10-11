@@ -13,10 +13,10 @@ log = log_meta(meta_path, login_count, pasword_count, server_name, start_date, e
 dat = load_excel('Historico_Chelsi')
 
 if __name__ == "__main__":
-    # print("Hello_World")
+    #print("Hello_World")
     #print(log.f_login())
     #print(log.account_info())
-    #print(log.get_historical())
+    #print(log.get_historical("prueba"))
     print(dat.get_historical())
 
 
