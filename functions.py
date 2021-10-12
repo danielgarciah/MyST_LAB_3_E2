@@ -1,7 +1,9 @@
 import pandas as pd
+import numpy as np
 import MetaTrader5 as Mt5
 from typing import Optional
 from os import path
+
 
 class log_meta():
 
@@ -34,33 +36,98 @@ class log_meta():
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df['time_msc'] = pd.to_datetime(df['time'], unit='ms')
         if save_name:
-            reportpath = path.abspath('ReportesDeals_MT5/') + "/"
+            reportpath = path.abspath('Reportes_MT5/') + "/"
             df.to_excel(reportpath + save_name + ".xlsx")
         return df
     
     def get_historical_orders(self, save_name2: Optional[str] = None):
         tuplas2 = self.f_login().history_orders_get(self.start_date, self.end_date)
         df2 = pd.DataFrame(tuplas2, columns=tuplas2[0]._asdict().keys())
-        #df2['time'] = pd.to_datetime(df2['time'], unit='s')
-        #df2['time_msc'] = pd.to_datetime(df2['time'], unit='ms')
+        df2['time_setup'] = pd.to_datetime(df2['time_setup'], unit='s')
+        df2['time_setup_msc'] = pd.to_datetime(df2['time_setup_msc'], unit='ms')
         if save_name2:
             reportpath2 = path.abspath('ReportesOrders_MT5/') + "/"
             df2.to_excel(reportpath2 + save_name2 + ".xlsx")
         return df2
 
+    def get_total_historical(self):
+        deals = self.get_historical_deals()
+        order = self.get_historical_orders()
+        deals = deals[['position_id', 'type', 'price', 'swap', 'profit']].copy()
+        deals = deals[deals['position_id'] != 0]
+
+        # Obtener la primera operacion
+        operacion = deals.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
+        operacion = operacion.drop(columns=['swap', 'profit'])
+        operacion['type'] = np.where(operacion['type'] == 0, 'buy', 'sell')
+
+        # Obtener el precio al que se vendio o compro
+        operacion2 = deals.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
+        operacion2 = operacion2.drop(columns='type')
+        operacion2 = operacion2.rename(columns={'price': 'second_price'})
+
+        operacionT = pd.merge(operacion, operacion2, on='position_id')
+
+        ordenes = order[['time_setup', 'symbol', 'position_id', 'type', 'volume_initial', 'sl', 'tp']].copy()
+
+        ordenes1 = ordenes.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
+        ordenes1 = ordenes1.drop(columns='type')
+        ordenes2 = ordenes.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
+        ordenes2 = ordenes2[['position_id', 'time_setup']]
+        ordenes2 = ordenes2.rename(columns={'time_setup': 'time_setup2'})
+        Operacion_Ordenes = pd.merge(operacionT, ordenes1, on='position_id')
+        Operacion_Ordenes = pd.merge(Operacion_Ordenes, ordenes2, on='position_id')
+
+        final = Operacion_Ordenes[['position_id', 'symbol', 'type', 'time_setup', 'volume_initial', 'price',
+                                  'sl', 'tp', 'time_setup2', 'second_price', 'swap', 'profit']]
+        return final
+
+
 class load_excel():
 
-    def __init__(self, file_name):
-        self.file_name = file_name
+    def __init__(self, file_name_deals, file_name_orders):
+        self.file_name_deals = file_name_deals
+        self.file_name_orders = file_name_orders
 
     def get_historical_deals(self):
-        reportpath = path.abspath('ReportesDeals_MT5/') + "/"
-        return pd.read_excel(reportpath + self.file_name + ".xlsx")
+        report_path = path.abspath('ReportesDeals_MT5/') + "/"
+        return pd.read_excel(report_path + self.file_name_deals + ".xlsx")
     
     def get_historical_orders(self):
-        reportpath2 = path.abspath('ReportesOrders_MT5/') + "/"
-        return pd.read_excel(reportpath2 + self.file_name + ".xlsx")
+        report_path2 = path.abspath('ReportesOrders_MT5/') + "/"
+        return pd.read_excel(report_path2 + self.file_name_orders + ".xlsx")
 
+    def get_total_historical(self):
+        deals = self.get_historical_deals()
+        order = self.get_historical_orders()
+        deals = deals[['position_id', 'type', 'price', 'swap', 'profit']].copy()
+        deals = deals[deals['position_id'] != 0]
+
+        # Obtener la primera operacion
+        operacion = deals.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
+        operacion = operacion.drop(columns=['swap', 'profit'])
+        operacion['type'] = np.where(operacion['type'] == 0, 'buy', 'sell')
+
+        # Obtener el precio al que se vendio o compro
+        operacion2 = deals.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
+        operacion2 = operacion2.drop(columns='type')
+        operacion2 = operacion2.rename(columns={'price': 'second_price'})
+
+        operacionT = pd.merge(operacion, operacion2, on='position_id')
+
+        ordenes = order[['time_setup', 'symbol', 'position_id', 'type', 'volume_initial', 'sl', 'tp']].copy()
+
+        ordenes1 = ordenes.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
+        ordenes1 = ordenes1.drop(columns='type')
+        ordenes2 = ordenes.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
+        ordenes2 = ordenes2[['position_id', 'time_setup']]
+        ordenes2 = ordenes2.rename(columns={'time_setup': 'time_setup2'})
+        Operacion_Ordenes = pd.merge(operacionT, ordenes1, on='position_id')
+        Operacion_Ordenes = pd.merge(Operacion_Ordenes, ordenes2, on='position_id')
+
+        final = Operacion_Ordenes[['position_id', 'symbol', 'type', 'time_setup', 'volume_initial', 'price',
+                                  'sl', 'tp', 'time_setup2', 'second_price', 'swap', 'profit']]
+        return final
 
 class est_desc():
 
@@ -68,10 +135,10 @@ class est_desc():
         pass
 
     def get_historical(self):
-        return load_excel().get_historical()
+        pass # return load_excel().get_historical()
 
     def get_info(self):
-        return self.get_historical().info()
+        pass # return self.get_historical().info()
 
 
 
