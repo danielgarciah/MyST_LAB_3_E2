@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-import MetaTrader5 as Mt5
+#import MetaTrader5 as Mt5
 from typing import Optional
 from os import path
 
@@ -53,18 +53,25 @@ class log_meta():
     def get_total_historical(self):
         deals = self.get_historical_deals()
         order = self.get_historical_orders()
-        deals = deals[['position_id', 'type', 'price', 'swap', 'profit']].copy()
+
+        deals['comment']= deals['comment'].fillna('No')
+        deals['sl']=np.where(deals['comment'].str.contains('sl'),deals['comment'],'No')
+        deals['sl']= deals.sl.str.extract('(\d+\.\d+)')
+        deals['tp']=np.where(deals['comment'].str.contains('tp'),deals['comment'],'No')
+        deals['tp']= deals.tp.str.extract('(\d+\.\d+)')
+        
+        deals = deals[['position_id', 'type', 'price', 'swap', 'profit', 'sl','tp']].copy()
         deals = deals[deals['position_id'] != 0]
 
         # Obtener la primera operacion
         operacion = deals.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
-        operacion = operacion.drop(columns=['swap', 'profit'])
+        operacion = operacion.drop(columns=['swap', 'profit','sl','tp'])
         operacion['type'] = np.where(operacion['type'] == 0, 'buy', 'sell')
 
         # Obtener el precio al que se vendio o compro
         operacion2 = deals.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
         operacion2 = operacion2.drop(columns='type')
-        operacion2 = operacion2.rename(columns={'price': 'second_price'})
+        operacion2 = operacion2.rename(columns={'price': 'second_price','sl':'sl_op', 'tp': 'tp_op'})
 
         operacionT = pd.merge(operacion, operacion2, on='position_id')
 
@@ -78,8 +85,19 @@ class log_meta():
         Operacion_Ordenes = pd.merge(operacionT, ordenes1, on='position_id')
         Operacion_Ordenes = pd.merge(Operacion_Ordenes, ordenes2, on='position_id')
 
-        final = Operacion_Ordenes[['position_id', 'symbol', 'type', 'time_setup', 'volume_initial', 'price',
-                                  'sl', 'tp', 'time_setup2', 'second_price', 'swap', 'profit']]
+        Operacion_Ordenes['sl_op']= Operacion_Ordenes['sl_op'].fillna('No')
+        Operacion_Ordenes['tp_op']= Operacion_Ordenes['tp_op'].fillna('No')
+
+        Operacion_Ordenes['sl_nuevo']=np.where((Operacion_Ordenes['sl']==0)&(Operacion_Ordenes['sl_op']!='No'),Operacion_Ordenes['sl_op'],Operacion_Ordenes['sl'])
+        Operacion_Ordenes['tp_nuevo']=np.where((Operacion_Ordenes['tp']==0)&(Operacion_Ordenes['tp_op']!='No'),Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp'])
+
+        Operacion_Ordenes['sl_nuevo']=np.where((Operacion_Ordenes['sl']!=0)&(Operacion_Ordenes['sl_op']!='No')&(Operacion_Ordenes['sl']!= Operacion_Ordenes['sl_op']),Operacion_Ordenes['sl_op'],Operacion_Ordenes['sl_nuevo'])
+        Operacion_Ordenes['tp_nuevo']=np.where((Operacion_Ordenes['tp']!=0)&(Operacion_Ordenes['tp_op']!='No')&(Operacion_Ordenes['tp']!= Operacion_Ordenes['tp_op']),Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp_nuevo'])
+
+        Operacion_Ordenes= Operacion_Ordenes[['position_id','symbol','type','time_setup','volume_initial','price','sl_nuevo','tp_nuevo','time_setup2','second_price','swap','profit']].copy()
+        Operacion_Ordenes.rename(columns = {'sl_nuevo': 'sl','tp_nuevo':'tp'}, inplace = True)
+
+        final = Operacion_Ordenes
         return final
 
 
@@ -100,18 +118,25 @@ class load_excel():
     def get_total_historical(self):
         deals = self.get_historical_deals()
         order = self.get_historical_orders()
-        deals = deals[['position_id', 'type', 'price', 'swap', 'profit']].copy()
+
+        deals['comment']= deals['comment'].fillna('No')
+        deals['sl']=np.where(deals['comment'].str.contains('sl'),deals['comment'],'No')
+        deals['sl']= deals.sl.str.extract('(\d+\.\d+)')
+        deals['tp']=np.where(deals['comment'].str.contains('tp'),deals['comment'],'No')
+        deals['tp']= deals.tp.str.extract('(\d+\.\d+)')
+        
+        deals = deals[['position_id', 'type', 'price', 'swap', 'profit', 'sl','tp']].copy()
         deals = deals[deals['position_id'] != 0]
 
         # Obtener la primera operacion
         operacion = deals.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
-        operacion = operacion.drop(columns=['swap', 'profit'])
+        operacion = operacion.drop(columns=['swap', 'profit','sl','tp'])
         operacion['type'] = np.where(operacion['type'] == 0, 'buy', 'sell')
 
         # Obtener el precio al que se vendio o compro
         operacion2 = deals.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
         operacion2 = operacion2.drop(columns='type')
-        operacion2 = operacion2.rename(columns={'price': 'second_price'})
+        operacion2 = operacion2.rename(columns={'price': 'second_price','sl':'sl_op', 'tp': 'tp_op'})
 
         operacionT = pd.merge(operacion, operacion2, on='position_id')
 
@@ -125,8 +150,19 @@ class load_excel():
         Operacion_Ordenes = pd.merge(operacionT, ordenes1, on='position_id')
         Operacion_Ordenes = pd.merge(Operacion_Ordenes, ordenes2, on='position_id')
 
-        final = Operacion_Ordenes[['position_id', 'symbol', 'type', 'time_setup', 'volume_initial', 'price',
-                                  'sl', 'tp', 'time_setup2', 'second_price', 'swap', 'profit']]
+        Operacion_Ordenes['sl_op']= Operacion_Ordenes['sl_op'].fillna('No')
+        Operacion_Ordenes['tp_op']= Operacion_Ordenes['tp_op'].fillna('No')
+
+        Operacion_Ordenes['sl_nuevo']=np.where((Operacion_Ordenes['sl']==0)&(Operacion_Ordenes['sl_op']!='No'),Operacion_Ordenes['sl_op'],Operacion_Ordenes['sl'])
+        Operacion_Ordenes['tp_nuevo']=np.where((Operacion_Ordenes['tp']==0)&(Operacion_Ordenes['tp_op']!='No'),Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp'])
+
+        Operacion_Ordenes['sl_nuevo']=np.where((Operacion_Ordenes['sl']!=0)&(Operacion_Ordenes['sl_op']!='No')&(Operacion_Ordenes['sl']!= Operacion_Ordenes['sl_op']),Operacion_Ordenes['sl_op'],Operacion_Ordenes['sl_nuevo'])
+        Operacion_Ordenes['tp_nuevo']=np.where((Operacion_Ordenes['tp']!=0)&(Operacion_Ordenes['tp_op']!='No')&(Operacion_Ordenes['tp']!= Operacion_Ordenes['tp_op']),Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp_nuevo'])
+
+        Operacion_Ordenes= Operacion_Ordenes[['position_id','symbol','type','time_setup','volume_initial','price','sl_nuevo','tp_nuevo','time_setup2','second_price','swap','profit']].copy()
+        Operacion_Ordenes.rename(columns = {'sl_nuevo': 'sl','tp_nuevo':'tp'}, inplace = True)
+
+        final = Operacion_Ordenes
         return final
 
 class est_desc():
