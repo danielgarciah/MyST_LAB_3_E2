@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-#import MetaTrader5 as Mt5
+import MetaTrader5 as Mt5
 from typing import Optional
 from os import path
 
@@ -98,8 +98,34 @@ class log_meta():
         Operacion_Ordenes.rename(columns = {'sl_nuevo': 'sl','tp_nuevo':'tp'}, inplace = True)
 
         final = Operacion_Ordenes
+        final['tiempo'] = final['time_setup2'] - final['time_setup']
         return final
 
+    def get_symbol_info(self, symbol: str):
+        info_sym = self.f_login().symbol_info(symbol)
+        return info_sym.trade_contract_size, info_sym.trade_tick_size
+
+    def pip_size(self, symbol: str):
+        table = pd.read_csv("instruments_pips.csv")
+        table["Instrument"] = table["Instrument"].str.replace("_", "")
+        #tick_table = list(table[table["Instrument"] == symbol].TickSize)[0]
+        contract, tick = self.get_symbol_info(symbol)
+        pip_size = contract * tick
+        #pip_size_table = contract * tick_table
+        return pip_size#, pip_size_table
+
+    def column_pip_size(self):
+        historic = self.get_total_historical()
+        symbols = historic['symbol']
+        multiplicador = [self.pip_size(i) for i in symbols]
+        historic['pip_size'] = multiplicador
+        historic['pips'] = np.where(historic['type'] == "buy",
+                                    (historic["second_price"] - historic["price"]) * historic["pip_size"],
+                                    (historic["price"] - historic["second_price"]) * historic["pip_size"])
+        historic['pips_acum'] = historic['pips'].cumsum()
+        historic['profit_acum'] = historic['profit'].cumsum()
+        #historic.to_excel("Historic_final_Chelsi.xlsx")
+        return historic
 
 class load_excel():
 
@@ -150,17 +176,27 @@ class load_excel():
         Operacion_Ordenes = pd.merge(operacionT, ordenes1, on='position_id')
         Operacion_Ordenes = pd.merge(Operacion_Ordenes, ordenes2, on='position_id')
 
-        Operacion_Ordenes['sl_op']= Operacion_Ordenes['sl_op'].fillna('No')
-        Operacion_Ordenes['tp_op']= Operacion_Ordenes['tp_op'].fillna('No')
+        Operacion_Ordenes['sl_op'] = Operacion_Ordenes['sl_op'].fillna('No')
+        Operacion_Ordenes['tp_op'] = Operacion_Ordenes['tp_op'].fillna('No')
 
-        Operacion_Ordenes['sl_nuevo']=np.where((Operacion_Ordenes['sl']==0)&(Operacion_Ordenes['sl_op']!='No'),Operacion_Ordenes['sl_op'],Operacion_Ordenes['sl'])
-        Operacion_Ordenes['tp_nuevo']=np.where((Operacion_Ordenes['tp']==0)&(Operacion_Ordenes['tp_op']!='No'),Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp'])
+        Operacion_Ordenes['sl_nuevo'] = np.where((Operacion_Ordenes['sl'] == 0) & (Operacion_Ordenes['sl_op'] != 'No'),
+                                                  Operacion_Ordenes['sl_op'], Operacion_Ordenes['sl'])
+        Operacion_Ordenes['tp_nuevo'] = np.where((Operacion_Ordenes['tp'] == 0) & (Operacion_Ordenes['tp_op'] != 'No'),
+                                                  Operacion_Ordenes['tp_op'], Operacion_Ordenes['tp'])
 
-        Operacion_Ordenes['sl_nuevo']=np.where((Operacion_Ordenes['sl']!=0)&(Operacion_Ordenes['sl_op']!='No')&(Operacion_Ordenes['sl']!= Operacion_Ordenes['sl_op']),Operacion_Ordenes['sl_op'],Operacion_Ordenes['sl_nuevo'])
-        Operacion_Ordenes['tp_nuevo']=np.where((Operacion_Ordenes['tp']!=0)&(Operacion_Ordenes['tp_op']!='No')&(Operacion_Ordenes['tp']!= Operacion_Ordenes['tp_op']),Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp_nuevo'])
+        Operacion_Ordenes['sl_nuevo'] = np.where((Operacion_Ordenes['sl'] != 0) &
+                                                 (Operacion_Ordenes['sl_op'] != 'No') &
+                                                 (Operacion_Ordenes['sl'] != Operacion_Ordenes['sl_op']),
+                                                 Operacion_Ordenes['sl_op'], Operacion_Ordenes['sl_nuevo'])
+        Operacion_Ordenes['tp_nuevo'] = np.where((Operacion_Ordenes['tp'] != 0) &
+                                                 (Operacion_Ordenes['tp_op'] != 'No') &
+                                                 (Operacion_Ordenes['tp'] != Operacion_Ordenes['tp_op']),
+                                                 Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp_nuevo'])
 
-        Operacion_Ordenes= Operacion_Ordenes[['position_id','symbol','type','time_setup','volume_initial','price','sl_nuevo','tp_nuevo','time_setup2','second_price','swap','profit']].copy()
-        Operacion_Ordenes.rename(columns = {'sl_nuevo': 'sl','tp_nuevo':'tp'}, inplace = True)
+        Operacion_Ordenes= Operacion_Ordenes[['position_id', 'symbol', 'type', 'time_setup', 'volume_initial',
+                                              'price', 'sl_nuevo', 'tp_nuevo', 'time_setup2', 'second_price',
+                                              'swap','profit']].copy()
+        Operacion_Ordenes.rename(columns={'sl_nuevo': 'sl', 'tp_nuevo': 'tp'}, inplace=True)
 
         final = Operacion_Ordenes
         return final
@@ -171,7 +207,7 @@ class est_desc():
         pass
 
     def get_historical(self):
-        pass # return load_excel().get_historical()
+        pass #return load_excel().get_historical()
 
     def get_info(self):
         pass # return self.get_historical().info()
