@@ -1,6 +1,8 @@
 import pandas as pd
 import numpy as np
-import MetaTrader5 as Mt5
+import statistics
+import yfinance as yf
+#import MetaTrader5 as Mt5
 from typing import Optional
 from os import path
 
@@ -208,16 +210,20 @@ class load_excel():
         return final
 
     def historical(self):
-        report_path = path.abspath('ReportesDeals_MT5/') + "/"
+        report_path = path.abspath('Historicos/') + "/"
         return pd.read_excel(report_path + self.file_name_historical + ".xlsx")
 
 class est_desc():
     
-    def __init__(self):
-        pass
+    def __init__(self, file_name_deals, file_name_orders, file_name_historical):
+        self.file_name_deals = file_name_deals
+        self.file_name_orders = file_name_orders
+        self.file_name_historical = file_name_historical
+        
 
     def get_historical(self):
-        return load_excel().get_total_historical(())
+        excel_lo=load_excel(self.file_name_deals,self.file_name_orders,self.file_name_historical)
+        return excel_lo.historical()
 
     def get_estadisticaba(self):
         
@@ -277,8 +283,104 @@ class est_desc():
 
         return estadistica_ba
 
+class metricas_ad():
+
+    def __init__(self, file_name_deals, file_name_orders, file_name_historical):
+        self.file_name_deals = file_name_deals
+        self.file_name_orders = file_name_orders
+        self.file_name_historical = file_name_historical
+        
+
+    def get_historical(self):
+        excel_lo=load_excel(self.file_name_deals,self.file_name_orders,self.file_name_historical)
+        return excel_lo.historical()
+
+    def f_evolucion_capital(self):
+        df= self.get_historical()
+        df['time_setup']= df['time_setup'].dt.date
+
+        capital = 100000
+
+        df2 = pd.DataFrame(df.groupby(['time_setup']).sum())
+        idx = pd.date_range('2021-09-17', '2021-10-06')
+        df2.index = pd.DatetimeIndex(df2.index)
+        df2 = df2.reindex(idx, fill_value=0)
+
+        data =pd.DataFrame()
+        data['time'] = df2.index.unique()
+        data['profit_d'] = np.array(df2['profit'])
+        data['profit_acm_d'] = data['profit_d'] + capital
+        i = 0
+        n = len(data)-1
+        data['profit_acm_d'] = data['profit_d'].cumsum() + capital
+
+        return data
+
+    def f_estadisticas_mad(self):
+        data= self.f_evolucion_capital()
+        df= self.get_historical()
+        # Sharpe Ratio Original:
+        rend = np.log(data.profit_acm_d) - np.log(data.profit_acm_d.shift(1))
+        rend = rend.dropna()
+
+        prom_rend_log = np.mean(rend)
+
+        rf = .05
+
+        des_est = statistics.pstdev(rend)
+
+        Sharpe_O = (prom_rend_log-rf)/des_est
+
+        # Descarga de precios standard and poor's 500
+        fecha_inicial = df['time_setup'][0]
+        fecha_final = df['time_setup'][len(df)-1]
+
+        precios_sp500 = yf.download('^GSPC', start= fecha_inicial, end=fecha_final, interval='1d') 
+        precios_sp500.drop(['Open', 'High', 'Low', 'Volume', 'Adj Close'], axis=1, inplace=True)
+        precios_sp500['Date'] = precios_sp500.index
+
+        # Sharpe Ratio Actualizado:
+        rend_porta = np.log(data.profit_acm_d) - np.log(data.profit_acm_d.shift(1))
+        rend_sp500 = np.log(precios_sp500.Close) - np.log(precios_sp500.Close.shift(1))
+
+        rend_porta = rend_porta.dropna()
+        rend_sp500 = rend_sp500.dropna()
+
+        prom_rend_porta_log = np.mean(rend_porta)
+        prom_rend_sp500_log = np.mean(rend_sp500)
+
+        des_est = prom_rend_porta_log - prom_rend_sp500_log
+
+        Sharpe_A = (prom_rend_porta_log - prom_rend_sp500_log)/des_est
+
+        # DrawDown (Capital):
+
+        posicion_min = data['profit_d'].idxmin()
+        posicion_max = data[0:posicion_min+1]['profit_acm_d'].idxmax()
+
+        data_min = data['profit_d'].min()
+        data_max = data[0:posicion_min+1]['profit_acm_d'].max()
+
+        fecha_inicial_dd = data['time'][posicion_max]
+        fecha_final_dd = data['time'][posicion_min]
+
+        # Drown up 
+        data_min_du = data['profit_d'].min()
+        data_max_du = data['profit_d'].max()
+
+        posicion_max = data['profit_d'].idxmax()
+        posicion_min = data['profit_d'].idxmin()
 
 
+        fecha_inicial_du = data['time'][posicion_min]
+        fecha_final_du = data['time'][posicion_max]
 
+        metricas = pd.DataFrame()
+        metricas['metrica'] = ['sharpe_original', 'sharpe_actualizado', 'drawdown_capi', 'drawdown_capi', 
+                                'drawdown_capi', 'drawup_capi', 'drawup_capi', 'drawup_capi']
+        metricas[''] = ['Cantidad', 'Cantidad', 'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)',
+                            'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)']
+        metricas['Valor'] = [Sharpe_O, Sharpe_A, fecha_inicial_dd, fecha_final_dd, data_min, fecha_inicial_du,
+                                fecha_final_du, data_max_du]
 
-
+        return metricas
