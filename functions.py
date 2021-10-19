@@ -212,15 +212,71 @@ class load_excel():
         return pd.read_excel(report_path + self.file_name_historical + ".xlsx")
 
 class est_desc():
-
+    
     def __init__(self):
         pass
 
     def get_historical(self):
-        pass #return load_excel().get_historical()
+        return load_excel().get_total_historical(())
 
-    def get_info(self):
-        pass # return self.get_historical().info()
+    def get_estadisticaba(self):
+        
+        df = self.get_historical()
+        
+        ### df_1_tabla 
+        Ops_totales= df['position_id'].count()
+        Ganadoras= len(df[df['profit']>=0])
+        Compras= df[df['type']=='buy']
+        Ganadoras_c= len(Compras[Compras['profit']>=0])
+        Ventas= df[df['type']=='sell']
+        Ganadoras_v= len(Ventas[Ventas['profit']>=0])
+        Perdedoras= len(df[df['profit']<0])
+        Perdedoras_c= len(Compras[Compras['profit']<0])
+        Perdedoras_v= len(Ventas[Ventas['profit']<0])
+        Mediana_profit= df['profit'].median()
+        Mediana_pips= df['pips'].median()
+        r_efectividad= Ganadoras/Ops_totales
+        r_proporcion=  Ganadoras/Perdedoras
+        r_efectividad_c= Ganadoras_c/Ops_totales
+        r_efectividad_v= Ganadoras_v/Ops_totales
+        
+        data_medidas = {'Medida':['Ops totales','Ganadoras','Ganadoras_c','Ganadoras_v','Perdedoras','Perdedoras_c','Perdedoras_v','Mediana (Profit)','Mediana (Pips)', 'r_efectividad','r_proporcion','r_efectividad_c','r_efectividad_v'],
+       
+        'Descripción':['Operaciones totales','Operaciones ganadoras','Operaciones ganadoras de compra','Operaciones ganadoras de venta',
+                      'Operaciones perdedoras','Operaciones perdedoras de compra','Operaciones perdedoras de venta','Mediana de profit de operaciones','Mediana de pips de operaciones',
+                      'Ganadoras Totales/Operaciones Totales','Ganadoras Totales/Perdedoras Totales','Ganadoras Compras/Operaciones Totales','Ganadoras Ventas/ Operaciones Totales'],
+       
+        'Valor':[Ops_totales,Ganadoras,Ganadoras_c,Ganadoras_v,Perdedoras,Perdedoras_c,Perdedoras_v,Mediana_profit,Mediana_pips,r_efectividad,r_proporcion,r_efectividad_c,r_efectividad_v]}
+
+        df_1_tabla = pd.DataFrame(data_medidas)
+        df_1_tabla['Valor']= df_1_tabla['Valor'].round(2)
+        
+        ### df_2_ranking
+
+        df_2_ranking=pd.DataFrame(df.groupby(['symbol'])['symbol'].count())
+        df_2_ranking= df_2_ranking.rename(columns = {'symbol': 'Total_symbols'})
+        df_2_ranking= df_2_ranking.reset_index()
+
+        Gan=df[df['profit']>0]
+        Gan2=pd.DataFrame(Gan.groupby(['symbol'])['symbol'].count())
+        Gan2= Gan2.rename(columns = {'symbol': 'Gan_symbols'})
+        Gan2= Gan2.reset_index()
+
+        df_2_ranking['Gan_symbols']= df_2_ranking['symbol'].map(Gan2.set_index('symbol')['Gan_symbols'])
+        df_2_ranking['Gan_symbols']= df_2_ranking['Gan_symbols'].fillna(0)
+        df_2_ranking['Gan_symbols'] = df_2_ranking['Gan_symbols'].astype(int)
+        df_2_ranking['rank']= np.round((df_2_ranking['Gan_symbols']/df_2_ranking['Total_symbols'])*100,1)
+        df_2_ranking['rank']= df_2_ranking['rank'].fillna(0)
+        df_2_ranking.sort_values(by=['rank'],ascending=False, inplace=True,ignore_index=True)
+        df_2_ranking['rank'] = df_2_ranking['rank'].astype(str) +'%'
+        df_2_ranking= df_2_ranking.drop(columns= ['Total_symbols','Gan_symbols'])
+
+        estadistica_ba = {}
+        estadistica_ba["df_1_tabla"] = df_1_tabla
+        estadistica_ba["df_2_ranking"] = df_2_ranking
+
+        return estadistica_ba
+
 
 
 
