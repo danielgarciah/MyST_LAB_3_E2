@@ -4,8 +4,8 @@ from datetime import datetime
 
 
 meta_path = 'C:\Program Files\MetaTrader 5 Terminal\\terminal64.exe'
-login_count = 5400342 #'Bruno': 5400338 #'Chelsi': 5400342 #'Daniel': 5400339
-password_count = 'XN1xho9d' #'Bruno': 'LHFFV4Nh' #'Chelsi': 'XN1xho9d' #'Daniel': '5400339'
+login_count = 5400339 #'Bruno': 5400338 #'Chelsi': 5400342 #'Daniel': 5400339
+password_count = '2qeDQrhu' #'Bruno': 'LHFFV4Nh' #'Chelsi': 'XN1xho9d' #'Daniel': '2qeDQrhu'
 server_name = 'FxPro-MT5'
 start_date = datetime(2021, 8, 1)
 end_date = datetime.today()
@@ -26,8 +26,8 @@ if __name__ == "__main__":
     #print(dat.get_total_historical())
     #print(est.pip_size())
     #print(log.pip_size("EURUSD"))
-    print(log.column_pip_size())
-
+    #print(log.column_pip_size())
+    print(log.historical())
 
 
 

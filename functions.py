@@ -36,7 +36,7 @@ class log_meta():
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df['time_msc'] = pd.to_datetime(df['time'], unit='ms')
         if save_name:
-            reportpath = path.abspath('Reportes_MT5/') + "/"
+            reportpath = path.abspath('ReportesDeals_MT5/') + "/"
             df.to_excel(reportpath + save_name + ".xlsx")
         return df
     
@@ -101,18 +101,15 @@ class log_meta():
         final['tiempo'] = final['time_setup2'] - final['time_setup']
         return final
 
-    def get_symbol_info(self, symbol: str):
-        info_sym = self.f_login().symbol_info(symbol)
-        return info_sym.trade_contract_size, info_sym.trade_tick_size
-
     def pip_size(self, symbol: str):
         table = pd.read_csv("instruments_pips.csv")
         table["Instrument"] = table["Instrument"].str.replace("_", "")
-        #tick_table = list(table[table["Instrument"] == symbol].TickSize)[0]
-        contract, tick = self.get_symbol_info(symbol)
-        pip_size = contract * tick
-        #pip_size_table = contract * tick_table
-        return pip_size#, pip_size_table
+        if symbol in list(table["Instrument"]):
+            tick_table = list(table[table["Instrument"] == symbol].TickSize)[0]
+        else:
+            tick_table = 0.01
+        pip_size = 1 / tick_table
+        return pip_size
 
     def column_pip_size(self):
         historic = self.get_total_historical()
@@ -124,14 +121,23 @@ class log_meta():
                                     (historic["price"] - historic["second_price"]) * historic["pip_size"])
         historic['pips_acum'] = historic['pips'].cumsum()
         historic['profit_acum'] = historic['profit'].cumsum()
-        #historic.to_excel("Historic_final_Chelsi.xlsx")
+        #historic.to_excel("Historic_final_Daniel.xlsx")
         return historic
+
+    def historical(self):
+        df = self.column_pip_size()
+        reportpath = path.abspath('Historicos/') + "/"
+        save_name = self.account_info().name
+        df.to_excel(reportpath + "Historic_final_" + save_name + ".xlsx")
+        return df
+
 
 class load_excel():
 
-    def __init__(self, file_name_deals, file_name_orders):
+    def __init__(self, file_name_deals, file_name_orders, file_name_historical):
         self.file_name_deals = file_name_deals
         self.file_name_orders = file_name_orders
+        self.file_name_historical = file_name_historical
 
     def get_historical_deals(self):
         report_path = path.abspath('ReportesDeals_MT5/') + "/"
@@ -200,6 +206,10 @@ class load_excel():
 
         final = Operacion_Ordenes
         return final
+
+    def historical(self):
+        report_path = path.abspath('ReportesDeals_MT5/') + "/"
+        return pd.read_excel(report_path + self.file_name_historical + ".xlsx")
 
 class est_desc():
 
