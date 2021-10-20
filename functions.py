@@ -23,7 +23,7 @@ class log_meta():
                                     password=self.password,
                                     server=self.server)
         if connection:
-            print("Si funciona")
+            pass
         else:
             print(Mt5.last_error())
             Mt5.shutdown()
@@ -32,14 +32,15 @@ class log_meta():
     def account_info(self):
         return self.f_login().account_info()
 
-    def get_historical_deals(self, save_name: Optional[str] = None):
+    def get_historical_deals(self):
         tuplas = self.f_login().history_deals_get(self.start_date, self.end_date)
         df = pd.DataFrame(tuplas, columns=tuplas[0]._asdict().keys())
         df['time'] = pd.to_datetime(df['time'], unit='s')
         df['time_msc'] = pd.to_datetime(df['time'], unit='ms')
-        if save_name:
-            reportpath = path.abspath('ReportesDeals_MT5/') + "/"
-            df.to_excel(reportpath + save_name + ".xlsx")
+
+        reportpath = path.abspath('ReportesDeals_MT5/') + "/"
+        save_name = self.account_info().name
+        df.to_excel(reportpath + "Deals_" + save_name + ".xlsx")
         return df
     
     def get_historical_orders(self, save_name2: Optional[str] = None):
@@ -47,9 +48,10 @@ class log_meta():
         df2 = pd.DataFrame(tuplas2, columns=tuplas2[0]._asdict().keys())
         df2['time_setup'] = pd.to_datetime(df2['time_setup'], unit='s')
         df2['time_setup_msc'] = pd.to_datetime(df2['time_setup_msc'], unit='ms')
-        if save_name2:
-            reportpath2 = path.abspath('ReportesOrders_MT5/') + "/"
-            df2.to_excel(reportpath2 + save_name2 + ".xlsx")
+
+        reportpath = path.abspath('ReportesOrders_MT5/') + "/"
+        save_name = self.account_info().name
+        df2.to_excel(reportpath + "Orders_" + save_name + ".xlsx")
         return df2
 
     def get_total_historical(self):
@@ -111,7 +113,8 @@ class log_meta():
 
         final = Operacion_Ordenes
         final['tiempo'] = final['time_setup2'] - final['time_setup']
-        #final['tiempo'] =
+        final = final.rename(columns={'time_setup': 'opentime', 'time_setup2': 'closetime'})
+        final['tiempo'] = final['tiempo'].dt.total_seconds().astype("int")
         return final
 
     def pip_size(self, symbol: str):
@@ -134,7 +137,6 @@ class log_meta():
                                     (historic["price"] - historic["second_price"]) * historic["pip_size"])
         historic['pips_acum'] = historic['pips'].cumsum()
         historic['profit_acum'] = historic['profit'].cumsum()
-        #historic.to_excel("Historic_final_Daniel.xlsx")
         return historic
 
     def historical(self):
@@ -147,102 +149,37 @@ class log_meta():
 
 class load_excel():
 
-    def __init__(self, file_name_deals, file_name_orders, file_name_historical):
-        self.file_name_deals = file_name_deals
-        self.file_name_orders = file_name_orders
-        self.file_name_historical = file_name_historical
+    def __init__(self, user_name: int):
+        self.user_name = user_name
 
     def get_historical_deals(self):
         report_path = path.abspath('ReportesDeals_MT5/') + "/"
-        return pd.read_excel(report_path + self.file_name_deals + ".xlsx")
+        return pd.read_excel(report_path + 'Deals_' + self.user_name + ".xlsx", index_col=0)
     
     def get_historical_orders(self):
         report_path2 = path.abspath('ReportesOrders_MT5/') + "/"
-        return pd.read_excel(report_path2 + self.file_name_orders + ".xlsx")
-
-    def get_total_historical(self):
-        deals = self.get_historical_deals()
-        order = self.get_historical_orders()
-
-        deals['comment'] = deals['comment'].fillna('No')
-        deals['sl'] = np.where(deals['comment'].str.contains('sl'), deals['comment'],'No')
-        deals['sl'] = deals.sl.str.extract('(\d+\.\d+)')
-        deals['tp'] = np.where(deals['comment'].str.contains('tp'), deals['comment'],'No')
-        deals['tp'] = deals.tp.str.extract('(\d+\.\d+)')
-        
-        deals = deals[['position_id', 'type', 'price', 'swap', 'profit', 'sl', 'tp']].copy()
-        deals = deals[deals['position_id'] != 0]
-
-        # Obtener la primera operacion
-        operacion = deals.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
-        operacion = operacion.drop(columns=['swap', 'profit','sl','tp'])
-        operacion['type'] = np.where(operacion['type'] == 0, 'buy', 'sell')
-
-        # Obtener el precio al que se vendio o compro
-        operacion2 = deals.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
-        operacion2 = operacion2.drop(columns='type')
-        operacion2 = operacion2.rename(columns={'price': 'second_price','sl':'sl_op', 'tp': 'tp_op'})
-
-        operacionT = pd.merge(operacion, operacion2, on='position_id')
-
-        ordenes = order[['time_setup', 'symbol', 'position_id', 'type', 'volume_initial', 'sl', 'tp']].copy()
-
-        ordenes1 = ordenes.drop_duplicates(subset='position_id', keep='first', ignore_index=True)
-        ordenes1 = ordenes1.drop(columns='type')
-        ordenes2 = ordenes.drop_duplicates(subset='position_id', keep='last', ignore_index=True)
-        ordenes2 = ordenes2[['position_id', 'time_setup']]
-        ordenes2 = ordenes2.rename(columns={'time_setup': 'time_setup2'})
-        Operacion_Ordenes = pd.merge(operacionT, ordenes1, on='position_id')
-        Operacion_Ordenes = pd.merge(Operacion_Ordenes, ordenes2, on='position_id')
-
-        Operacion_Ordenes['sl_op'] = Operacion_Ordenes['sl_op'].fillna('No')
-        Operacion_Ordenes['tp_op'] = Operacion_Ordenes['tp_op'].fillna('No')
-
-        Operacion_Ordenes['sl_nuevo'] = np.where((Operacion_Ordenes['sl'] == 0) & (Operacion_Ordenes['sl_op'] != 'No'),
-                                                  Operacion_Ordenes['sl_op'], Operacion_Ordenes['sl'])
-        Operacion_Ordenes['tp_nuevo'] = np.where((Operacion_Ordenes['tp'] == 0) & (Operacion_Ordenes['tp_op'] != 'No'),
-                                                  Operacion_Ordenes['tp_op'], Operacion_Ordenes['tp'])
-
-        Operacion_Ordenes['sl_nuevo'] = np.where((Operacion_Ordenes['sl'] != 0) &
-                                                 (Operacion_Ordenes['sl_op'] != 'No') &
-                                                 (Operacion_Ordenes['sl'] != Operacion_Ordenes['sl_op']),
-                                                 Operacion_Ordenes['sl_op'], Operacion_Ordenes['sl_nuevo'])
-        Operacion_Ordenes['tp_nuevo'] = np.where((Operacion_Ordenes['tp'] != 0) &
-                                                 (Operacion_Ordenes['tp_op'] != 'No') &
-                                                 (Operacion_Ordenes['tp'] != Operacion_Ordenes['tp_op']),
-                                                 Operacion_Ordenes['tp_op'],Operacion_Ordenes['tp_nuevo'])
-
-        Operacion_Ordenes= Operacion_Ordenes[['position_id', 'symbol', 'type', 'time_setup', 'volume_initial',
-                                              'price', 'sl_nuevo', 'tp_nuevo', 'time_setup2', 'second_price',
-                                              'swap','profit']].copy()
-        Operacion_Ordenes.rename(columns={'sl_nuevo': 'sl', 'tp_nuevo': 'tp'}, inplace=True)
-
-        final = Operacion_Ordenes
-        return final
+        return pd.read_excel(report_path2 + 'Orders_' + self.user_name + ".xlsx", index_col=0)
 
     def historical(self):
         report_path = path.abspath('Historicos/') + "/"
-        return pd.read_excel(report_path + self.file_name_historical + ".xlsx")
+        return pd.read_excel(report_path + 'Historic_final_' + self.user_name + ".xlsx", index_col=0)
 
 
 class est_desc():
     
-    def __init__(self, file_name_deals, file_name_orders, file_name_historical):
-        self.file_name_deals = file_name_deals
-        self.file_name_orders = file_name_orders
-        self.file_name_historical = file_name_historical
+    def __init__(self, user_name):
+        self.user_name = user_name
 
     def get_historical(self):
-        excel_lo=load_excel(self.file_name_deals, self.file_name_orders, self.file_name_historical)
+        excel_lo = load_excel(self.user_name)
         return excel_lo.historical()
 
     def get_estadisticaba(self):
-        
         df = self.get_historical()
         
         ### df_1_tabla 
         Ops_totales = df['position_id'].count()
-        Ganadoras = len(df[df['profit']>=0])
+        Ganadoras = len(df[df['profit'] >= 0])
         Compras = df[df['type'] == 'buy']
         Ganadoras_c = len(Compras[Compras['profit'] >= 0])
         Ventas = df[df['type'] == 'sell']
@@ -302,22 +239,20 @@ class est_desc():
 
 class metricas_ad():
 
-    def __init__(self, file_name_deals, file_name_orders, file_name_historical):
-        self.file_name_deals = file_name_deals
-        self.file_name_orders = file_name_orders
-        self.file_name_historical = file_name_historical
+    def __init__(self, user_name):
+        self.user_name = user_name
 
     def get_historical(self):
-        excel_lo = load_excel(self.file_name_deals, self.file_name_orders, self.file_name_historical)
+        excel_lo = load_excel(self.user_name)
         return excel_lo.historical()
 
     def f_evolucion_capital(self):
         df = self.get_historical()
-        df['time_setup'] = df['time_setup'].dt.date
+        df['opentime'] = df['opentime'].dt.date
 
         capital = 100000
 
-        df2 = pd.DataFrame(df.groupby(['time_setup']).sum())
+        df2 = pd.DataFrame(df.groupby(['opentime']).sum())
         idx = pd.date_range('2021-09-17', '2021-10-06')
         df2.index = pd.DatetimeIndex(df2.index)
         df2 = df2.reindex(idx, fill_value=0)
@@ -329,7 +264,6 @@ class metricas_ad():
         i = 0
         n = len(data)-1
         data['profit_acm_d'] = data['profit_d'].cumsum() + capital
-
         return data
 
     def f_estadisticas_mad(self):
@@ -341,18 +275,15 @@ class metricas_ad():
         rend = rend.dropna()
 
         prom_rend_log = np.mean(rend)
-
         rf = .05
-
         des_est = statistics.pstdev(rend)
-
         Sharpe_O = (prom_rend_log-rf)/des_est
 
         # Descarga de precios standard and poor's 500
-        fecha_inicial = df['time_setup'][0]
-        fecha_final = df['time_setup'][len(df)-1]
+        fecha_inicial = df['opentime'][0]
+        fecha_final = df['opentime'][len(df)-1]
 
-        precios_sp500 = yf.download('^GSPC', start=fecha_inicial, end=fecha_final, interval='1d')
+        precios_sp500 = yf.download('^GSPC', start=fecha_inicial, end=fecha_final, interval='1d', progress=False)
         precios_sp500.drop(['Open', 'High', 'Low', 'Volume', 'Adj Close'], axis=1, inplace=True)
         precios_sp500['Date'] = precios_sp500.index
 
@@ -367,11 +298,9 @@ class metricas_ad():
         prom_rend_sp500_log = np.mean(rend_sp500)
 
         des_est = prom_rend_porta_log - prom_rend_sp500_log
-
         Sharpe_A = (prom_rend_porta_log - prom_rend_sp500_log)/des_est
 
         # DrawDown (Capital):
-
         posicion_min = data['profit_d'].idxmin()
         posicion_max = data[0:posicion_min+1]['profit_acm_d'].idxmax()
 
