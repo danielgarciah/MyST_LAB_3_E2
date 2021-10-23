@@ -8,3 +8,5 @@ pandas
 pycodestyle==2.5.0
 Metatrader5
 openpyxl
+statistics
+yfinance
