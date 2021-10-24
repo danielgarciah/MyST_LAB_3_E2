@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 import statistics
+import plotly.graph_objects as go
 import yfinance as yf
 import MetaTrader5 as Mt5
 from typing import Optional
@@ -266,7 +267,7 @@ class metricas_ad():
         data['profit_acm_d'] = data['profit_d'].cumsum() + capital
         return data
 
-    def f_estadisticas_mad(self):
+    def estadisticas_fig(self):
         data = self.f_evolucion_capital()
         df = self.get_historical()
 
@@ -300,31 +301,271 @@ class metricas_ad():
         des_est = prom_rend_porta_log - prom_rend_sp500_log
         Sharpe_A = (prom_rend_porta_log - prom_rend_sp500_log)/des_est
 
-        # DrawDown (Capital):
-        posicion_min = data['profit_d'].idxmin()
-        posicion_max = data[0:posicion_min+1]['profit_acm_d'].idxmax()
+        #
 
-        data_min = data['profit_d'].min()
-        data_max = data[0:posicion_min+1]['profit_acm_d'].max()
+        data_min = data['profit_acm_d'].min()
+        data_max = data['profit_acm_d'].max()
 
-        fecha_inicial_dd = data['time'][posicion_max]
-        fecha_final_dd = data['time'][posicion_min]
+        posicion_max = data['profit_acm_d'].idxmax()
+        posicion_min = data['profit_acm_d'].idxmin()
 
-        # Drown up 
-        data_min_du = data['profit_d'].min()
-        data_max_du = data['profit_d'].max()
+        fecha_max = data['time'][posicion_max]
+        fecha_min = data['time'][posicion_min]
 
-        posicion_max = data['profit_d'].idxmax()
-        posicion_min = data['profit_d'].idxmin()
+        if fecha_max > fecha_min:
+            fecha_inicial_dd = data.loc[0, 'time']
+            fecha_final_dd = fecha_min
+            fecha_inicial_du = data['time'][posicion_min]
+            fecha_final_du = fecha_max
+        else:
+            fecha_inicial_du = data.loc[0, 'time']
+            fecha_final_du = fecha_max
+            fecha_inicial_dd = data['time'][posicion_max]
+            fecha_final_dd = fecha_min
 
-        fecha_inicial_du = data['time'][posicion_min]
-        fecha_final_du = data['time'][posicion_max]
+        estadisticas = pd.DataFrame()
+        estadisticas['metrica'] = ['sharpe_original', 'sharpe_actualizado', 'drawdown_capi', 'drawdown_capi',
+                                   'drawdown_capi', 'drawup_capi', 'drawup_capi', 'drawup_capi']
+        estadisticas[''] = ['Cantidad', 'Cantidad', 'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)',
+                            'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)']
+        estadisticas['Valor'] = [Sharpe_O, Sharpe_A, fecha_inicial_dd, fecha_final_dd, data_min, fecha_inicial_du,
+                                 fecha_final_du, data_max]
+        
+        estadisticas['descripcion'] = ['Sharpe Ratio Fórmula Original', 'Sharpe Ratio Fórmula Ajustada' , 'Fecha inicial del DrawDown de Capital' , 
+        'Fecha final del DrawDown de Capital', 'Máxima pérdida flotante registrada', 'Fecha inicial del DrawUp de Capital', 
+        'Fecha final del DrawUp de Capital', 'Máxima ganancia flotante registrada']
 
-        metricas = pd.DataFrame()
-        metricas['metrica'] = ['sharpe_original', 'sharpe_actualizado', 'drawdown_capi', 'drawdown_capi',
-                               'drawdown_capi', 'drawup_capi', 'drawup_capi', 'drawup_capi']
-        metricas[''] = ['Cantidad', 'Cantidad', 'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)',
-                        'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)']
-        metricas['Valor'] = [Sharpe_O, Sharpe_A, fecha_inicial_dd, fecha_final_dd, data_min, fecha_inicial_du,
-                             fecha_final_du, data_max_du]
-        return metricas
+        data.set_index('time', inplace=True)
+
+        x_dd = data.loc[fecha_inicial_dd:fecha_final_dd].index
+        y_dd = data.loc[fecha_inicial_dd:fecha_final_dd]['profit_acm_d']
+
+        x_du = data.loc[fecha_inicial_du:fecha_final_du].index
+        y_du = data.loc[fecha_inicial_du:fecha_final_du]['profit_acm_d']
+
+        x_cc = data.index
+        y_cc = data['profit_acm_d']
+
+        fig = go.Figure()
+
+        fig.add_trace(go.Scatter(x=x_cc, y=y_cc, name='Profit diario', mode='lines', line=dict(color='black')))
+        fig.add_trace(go.Scatter(x=x_dd, y=y_dd, name='Drawdown', mode='lines',
+                                 line=dict(color='red', width=4, dash='dashdot')))
+        fig.add_trace(go.Scatter(x=x_du, y=y_du, name='Drawdup', mode='lines',
+                                 line=dict(color='Green', width=4, dash='dashdot')))
+
+        return estadisticas, fig
+
+    def f_estadisticas_mad(self):
+        estadisticas, fig = self.estadisticas_fig()
+        return estadisticas
+
+
+class behavioral_finance():
+
+    def __init__(self, path, login, password, server):
+        self.path = path
+        self.login = login
+        self.password = password
+        self.server = server
+
+    def dictionary_figure(self):
+        connection = Mt5.initialize(path=self.path,
+                                    login=self.login,
+                                    password=self.password,
+                                    server=self.server)
+
+        user_name = Mt5.account_info().name
+
+        excel_lo = load_excel(user_name)
+        df = excel_lo.historical()
+
+        df['ratio'] = round((df['profit'] / df['profit_acum']) * 100, 2)
+
+        df_anclas = df[df['profit'] >= 0]
+
+        id_gan = list()
+        id_per = list()
+        profit_gan = list()
+        profit_per = list()
+        profit_acum = list()
+        ratio_per = list()
+        ratio_gan = list()
+        df_anclas = df_anclas.reset_index(drop=True)
+
+        for i in range(1, len(df_anclas)):
+            for j in range(1, len(df)):
+                if df_anclas.loc[i, 'closetime'] >= df.loc[j, 'opentime'] and df_anclas.loc[i, 'closetime'] < df.loc[j, 'closetime']:
+                    precio = Mt5.copy_ticks_from(df.loc[j, 'symbol'],
+                                                 df_anclas.loc[i, 'closetime'],
+                                                 1,
+                                                 Mt5.TIMEFRAME_M5)
+
+                    if df.loc[j, 'type'] == "buy":
+                        precio_f = precio[0][1]
+                        pip_nuevo = (precio_f - df.loc[j, 'second_price']) * df.loc[j, 'pip_size']
+                    else:
+                        precio_f = precio[0][2]
+                        pip_nuevo = (df.loc[j, 'second_price'] - precio_f) * df.loc[j, 'pip_size']
+
+                    profit_nuevo = (df.loc[j, 'profit'] / df.loc[j, 'pips']) * pip_nuevo
+                    if profit_nuevo < 0:
+                        id_gan.append(df_anclas.loc[i, 'position_id'])
+                        id_per.append(df.loc[j, 'position_id'])
+                        profit_gan.append(df_anclas.loc[i, 'profit'])
+                        profit_per.append(profit_nuevo)
+                        profit_acum.append(df_anclas.loc[i, 'profit_acum'])
+                        ratio_gan.append(df_anclas.loc[i, 'ratio'])
+                        ratio_per.append(df.loc[j, 'ratio'])
+
+        potenciales = pd.DataFrame()
+        potenciales['id_gan'] = id_gan
+        potenciales['profit_gan'] = profit_gan
+        potenciales['ratio_gan'] = ratio_gan
+        potenciales['id_per'] = id_per
+        potenciales['profit_per'] = profit_per
+        potenciales['ratio_per'] = ratio_per
+        potenciales['profit_acum'] = profit_acum
+
+        potenciales_finales = potenciales.groupby(['id_gan']).max(["profit_per"])
+
+        ocurrencias = len(potenciales_finales)
+        dictionary = {'Ocurrencias': {
+            'Cantidad': ocurrencias}}
+
+        status = 0
+        aversion = 0
+        sensibilidad = 0
+        for i in range(len(potenciales_finales)):
+            if potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[i, 5] < \
+                    potenciales_finales.iloc[i, 0] / potenciales_finales.iloc[i, 5]:
+                status += 1
+            if abs(potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[i, 0]) > 2:
+                aversion += 1
+
+        if potenciales_finales.iloc[-1, 5] > potenciales_finales.iloc[0, 5]:
+            sensibilidad += 1
+        if potenciales_finales.iloc[-1, 0] > potenciales_finales.iloc[0, 0] and \
+                potenciales_finales.iloc[-1, 3] > potenciales_finales.iloc[0, 3]:
+            sensibilidad += 1
+        if potenciales_finales.iloc[-1, 3] / potenciales_finales.iloc[-1, 0] > 2:
+            sensibilidad += 1
+
+        status_quo = str(round((status / ocurrencias) * 100, 2)) + "%"
+        aversion_perdida = str(round((aversion / ocurrencias) * 100, 2)) + "%"
+        if sensibilidad >= 2:
+            sensibilidad_decreciente = "Si"
+        else:
+            sensibilidad_decreciente = "No"
+        bf = pd.DataFrame(data=np.array([[ocurrencias, status_quo, aversion_perdida, sensibilidad_decreciente]]),
+                          columns=['ocurrencias',
+                                   'status_quo',
+                                   'aversion_perdida',
+                                   'sensibilidad_decreciente'])
+
+        for i in range(ocurrencias):
+            dictionary["Ocurrencia_" + str(i + 1)] = {'timestamp': str(list(df_anclas[df_anclas['position_id'] == \
+                                                                                      potenciales_finales.index[i]][
+                                                                                'opentime'])[0]),
+                                                      'Operaciones': {
+                                                          'Ganadora': {
+                                                              'Instrumento': list(df_anclas[df_anclas['position_id'] == \
+                                                                                            potenciales_finales.index[
+                                                                                                i]]['symbol'])[0],
+                                                              'Volumen': list(df_anclas[df_anclas['position_id'] == \
+                                                                                        potenciales_finales.index[i]][
+                                                                                  'volume_initial'])[0],
+                                                              'Sentido': list(df_anclas[df_anclas['position_id'] == \
+                                                                                        potenciales_finales.index[i]][
+                                                                                  'type'])[0],
+                                                              'Profit_ganadora':
+                                                                  list(df_anclas[df_anclas['position_id'] == \
+                                                                                 potenciales_finales.index[i]][
+                                                                           'profit'])[0]
+                                                          },
+                                                          'Perdedora': {
+                                                              'Instrumento': list(df[df['position_id'] == \
+                                                                                     potenciales_finales.iloc[i, 2]][
+                                                                                      'symbol'])[0],
+                                                              'Volumen': list(df[df['position_id'] == \
+                                                                                 potenciales_finales.iloc[i, 2]][
+                                                                                  'volume_initial'])[0],
+                                                              'Sentido': list(df[df['position_id'] == \
+                                                                                 potenciales_finales.iloc[i, 2]][
+                                                                                  'type'])[0],
+                                                              'Profit_perdedora': np.round(
+                                                                  potenciales_finales.iloc[i, 3], 2)
+                                                          }
+                                                      },
+                                                      'Ratio_cp_profit_acm': np.round(
+                                                          potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[
+                                                              i, 5], 2),
+                                                      'Ratio_cg_profit_acm': np.round(
+                                                          potenciales_finales.iloc[i, 0] / potenciales_finales.iloc[
+                                                              i, 5], 2),
+                                                      'Ratio_cp_cg': np.round(
+                                                          potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[
+                                                              i, 0], 2)
+                                                      }
+        dictionary["Resultados"] = {'Dataframe': bf}
+
+        sensi_decre = 0
+        for i in range(1, len(potenciales_finales)):
+            sensi = 0
+            if potenciales_finales.iloc[i, 5] > potenciales_finales.iloc[i - 1, 5]:
+                sensi += 1
+            if potenciales_finales.iloc[i, 0] > potenciales_finales.iloc[i - 1, 0] and \
+                    potenciales_finales.iloc[i, 3] > potenciales_finales.iloc[i - 1, 3]:
+                sensi += 1
+            if potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[i, 0] > 2:
+                sensi += 1
+            if sensi >= 2:
+                sensi_decre += 1
+
+        bf_titles = ['status_quo', 'aversion_perdida', 'sensibilidad_decreciente']
+
+        fig = go.Figure(data=[
+            go.Bar(name='Si', x=bf_titles, y=[status, aversion, sensi_decre]),
+            go.Bar(name='No', x=bf_titles,
+                   y=[(ocurrencias - status), (ocurrencias - aversion), (ocurrencias - sensi_decre)])
+        ])
+
+        # Change the bar mode
+        fig.update_layout(barmode='group')
+
+        return dictionary, fig
+
+    def f_be_de(self):
+        dic, fig = self.dictionary_figure()
+        return dic
+
+
+class visualizaciones():
+
+    def __init__(self, user_name, path, login, password, server):
+        self.user_name = user_name
+        self.path = path
+        self.login = login
+        self.password = password
+        self.server = server
+
+    def grafica_ranking(self):
+
+        est = est_desc(self.user_name).get_estadisticaba()
+        df_2_ranking = pd.DataFrame(est["df_2_ranking"])
+        labels = df_2_ranking['symbol']
+        values = list((df_2_ranking['rank'].str.replace("%", "")).astype(float))
+
+        fig = go.Figure(data=[go.Pie(labels=labels, values=values, pull=[0.1]+[0]*(len(df_2_ranking)-1), textinfo='label+ percent')])
+        fig.update_layout(title_text='Gráfica 1: Ranking')
+        fig.show()
+
+    def grafica_draw(self):
+        estadisticas, fig = metricas_ad(self.user_name).estadisticas_fig()
+        fig.update_layout(title_text='Gráfica 2: DrawDown y DrawUp')
+        fig.show()
+
+    def grafica_disposicion(self):
+        dic, fig = behavioral_finance(self.path, self.login, self.password, self.server).dictionary_figure()
+        fig.update_layout(title_text='Gráfica 3: Disposition Effect')
+        fig.show()
