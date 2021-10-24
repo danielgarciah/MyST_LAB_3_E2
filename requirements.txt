@@ -10,3 +10,4 @@ Metatrader5
 openpyxl
 statistics
 yfinance
+plotly
