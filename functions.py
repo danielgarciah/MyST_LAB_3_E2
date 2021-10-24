@@ -3,7 +3,7 @@ import numpy as np
 import statistics
 import plotly.graph_objects as go
 import yfinance as yf
-#import MetaTrader5 as Mt5
+import MetaTrader5 as Mt5
 from typing import Optional
 from os import path
 
@@ -440,7 +440,7 @@ class behavioral_finance():
             if potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[i, 5] < \
                     potenciales_finales.iloc[i, 0] / potenciales_finales.iloc[i, 5]:
                 status += 1
-            if potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[i, 0] > 2:
+            if abs(potenciales_finales.iloc[i, 3] / potenciales_finales.iloc[i, 0]) > 2:
                 aversion += 1
 
         if potenciales_finales.iloc[-1, 5] > potenciales_finales.iloc[0, 5]:
@@ -556,14 +556,16 @@ class visualizaciones():
         labels = df_2_ranking['symbol']
         values = list((df_2_ranking['rank'].str.replace("%", "")).astype(float))
 
-        fig = go.Figure(data=[go.Pie(labels=labels, values=values, pull=[0, 0, 0.2, 0], textinfo='label+ percent')])
+        fig = go.Figure(data=[go.Pie(labels=labels, values=values, pull=[0.1]+[0]*(len(df_2_ranking)-1), textinfo='label+ percent')])
         fig.update_layout(title_text='Gráfica 1: Ranking')
         fig.show()
 
     def grafica_draw(self):
         estadisticas, fig = metricas_ad(self.user_name).estadisticas_fig()
+        fig.update_layout(title_text='Gráfica 2: DrawDown y DrawUp')
         fig.show()
 
     def grafica_disposicion(self):
         dic, fig = behavioral_finance(self.path, self.login, self.password, self.server).dictionary_figure()
+        fig.update_layout(title_text='Gráfica 3: Disposition Effect')
         fig.show()
