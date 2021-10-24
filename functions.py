@@ -3,7 +3,7 @@ import numpy as np
 import statistics
 import plotly.graph_objects as go
 import yfinance as yf
-import MetaTrader5 as Mt5
+#import MetaTrader5 as Mt5
 from typing import Optional
 from os import path
 
@@ -330,6 +330,10 @@ class metricas_ad():
                             'Fecha Inicial', 'Fecha Final', 'DrawDown $ (capital)']
         estadisticas['Valor'] = [Sharpe_O, Sharpe_A, fecha_inicial_dd, fecha_final_dd, data_min, fecha_inicial_du,
                                  fecha_final_du, data_max]
+        
+        estadisticas['descripcion'] = ['Sharpe Ratio Fórmula Original', 'Sharpe Ratio Fórmula Ajustada' , 'Fecha inicial del DrawDown de Capital' , 
+        'Fecha final del DrawDown de Capital', 'Máxima pérdida flotante registrada', 'Fecha inicial del DrawUp de Capital', 
+        'Fecha final del DrawUp de Capital', 'Máxima ganancia flotante registrada']
 
         data.set_index('time', inplace=True)
 
